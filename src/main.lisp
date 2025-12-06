@@ -254,3 +254,85 @@
                   ;; (aoc202504-draw-map map)
                   (clean map)))
       (- total-paper (paper map)))))
+
+(defun aoc202505-parse-range (range)
+  (list-bind (min max) 
+      (mapcar #'parse-integer (split-sequence #\- range))
+    (~~ >< min max)))
+
+(defun aoc202505-parse (input)
+  (loop :with range := t
+        :with lambdas :with numbers
+        :for line :in (mapcar #'trim-whitespace input)
+        :do (cond ((string= line "") (setf range nil))
+                  (range (consf (aoc202505-parse-range line) lambdas))
+                  (t (consf (parse-integer line) numbers)))
+        :finally (return (list lambdas numbers))))
+
+(defun aoc202505-1 (input)
+  (list-bind (lambdas numbers) (aoc202505-parse input)
+    (sum (mapcar (op (bool->int (at-least-one (mapcar (~~ funcall _) lambdas)))) numbers))))
+
+(defun aoc202505-2 (input)
+  (labels ((parse-range (l) (mapcar #'parse-integer (split-sequence #\- l)))
+           (parse-input (i) (loop :for raw-line :in i
+                                  :for line := (trim-whitespace raw-line)
+                                  :until (string= line "")
+                                  :collect (parse-range line)))
+           (merge-ranges (r0 r1) 
+             (if r1
+                 (list-bind (a b) r0
+                   (list-bind (c d) r1
+                     (cond ((and (>= b c) (<= b d)) (list a d))
+                           ((and (>= b c) (>= b d)) r0)
+                           ((and (= a c) (= b d)) r0)
+                           (t nil))))))
+           (merge-once (ranges) 
+             (remove-nulls
+              (loop :with skip
+                    :for (r0 r1) :on ranges
+                    :for r2 := (merge-ranges r0 r1)
+                    :collect (cond (skip (setf skip nil))
+                                   (r2 (setf skip r2))
+                                   (t r0)))))
+           (clean-ranges (r0 r1)
+             (if r1 
+                 (list-bind (a b) r0
+                   (list-bind (c d) r1
+                     (cond ((and (>= c a) (<= d b)) r0)
+                           ((and (>= a c) (<= b d)) r1)
+                           (t nil))))
+                 nil))
+           (clean-once (ranges)
+             (remove-nulls
+              (loop :with skip
+                    :for (r0 r1) :on ranges
+                    :for r2 := (clean-ranges r0 r1)
+                    :collect (cond (skip (setf skip nil))
+                                   (r2 (setf skip r2))
+                                   (t r0)))))
+           (clean-merge (ranges)
+             (merge-once 
+              (run-until-settled (ranges :test #'equal)
+                (clean-once .last-result.)))))
+    
+    (loop :for (a b) :in (clean-merge (sort (parse-input input) #'< :key #'car)) 
+          :sum (- (1+ b) a))
+
+    (loop :for (a b) :in (run-until-settled 
+                             ((sort (parse-input input) #'< :key #'car) :test #'equal)
+                           (merge-once .last-result.))
+          :sum (- (1+ b) a)))))
+
+(defparameter *test*
+(lines "3-5
+        10-14
+        16-20
+        12-18
+
+        1
+        5
+        8
+        11
+        17
+        32"))

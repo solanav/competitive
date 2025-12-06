@@ -6,6 +6,7 @@
 (defalias ->l (rcurry #'coerce 'list))
 (defalias remove-nulls (curry #'remove-if #'null))
 (defalias out (curry #'format t))
+(defalias at-least-one (curry #'some #'identity))
 
 ;; macros
 
@@ -30,6 +31,17 @@
          (cdr (cdr ,list)))
      (declare (ignorable car cadr cdr))
      ,@body))
+
+(defmacro list-bind (values list &body body)
+  (with-gensyms (l)
+    `(let* ((,l ,list) 
+            ,@(loop :for value :in values
+                    :for i :from 0 
+                    :collect `(,value (nth ,i ,l))))
+       ,@body)))
+
+(defmacro consf (se1 se2)
+  `(setf ,se2 (cons ,se1 ,se2)))
 
 ;; functions
 
@@ -134,6 +146,16 @@
   (read-file-into-string
    (asdf:system-relative-pathname
     (make-keyword (package-name *package*)) file)))
+
+(defun bool->int (bool)
+  (if bool 1 0))
+
+(defmacro run-until-settled ((initial-value &key test) &body body)
+  "runs the body in a loop until the results stop changing"
+  `(loop :for .last-result. := ,initial-value :then result
+         :for result := (progn ,@body)
+         :until (funcall ,test result .last-result.)
+         :finally (return .last-result.)))
 
 ;; AoC specific stuff
 
